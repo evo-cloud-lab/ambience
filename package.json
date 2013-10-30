@@ -1,0 +1,36 @@
+{
+    "name": "evo-ambience",
+    "description": "Evo Cloud Tasklet Execution Environment",
+    "version": "0.0.1",
+    "author": "Yisui Hu <easeway@gmail.com>",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/evo-cloud/ambience"
+    },
+    "scripts": {
+        "test": "mocha --reporter spec test/*-test.js"
+    },
+    "main": "index.js",
+    "bin": "ambience.js",
+    "dependencies": {
+        "evo-elements": "git://github.com/evo-cloud/elements",
+        "evo-neuron": "git://github.com/evo-cloud/neuron",
+        "async": "0.2.9",
+        "js-class": "0.0.2",
+        "underscore": "1.5.1"
+    },
+    "devDependencies": {
+        "mocha": "1.12.0",
+        "sandboxed-module": "0.2.1"
+    },
+    "engines": {
+        "node": ">=0.10",
+        "npm": "1"
+    },
+    "licenses": [
+        {
+            "type": "MIT",
+            "url": "https://github.com/evo-cloud/ambience/raw/master/LICENSE"
+        }
+    ]
+}
