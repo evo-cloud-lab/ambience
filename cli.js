@@ -1,4 +1,5 @@
-var Config = require('evo-elements').Config;
+var async = require('async'),
+    Config = require('evo-elements').Config;
 
 var SERVICE = 'ambience';
 
@@ -11,7 +12,7 @@ function request(neuron, msg, next) {
         err && cli.fatal(err);
         cli.log(cli.verb('Response'));
         cli.logObject(resp);
-        next ? next() : process.exit(0);
+        next ? next(resp, neuron) : process.exit(0);
     });
 }
 
@@ -40,7 +41,32 @@ function stopContainer(opts) {
 }
 
 function listContainers(opts) {
-    execute('container.list', {}, opts);
+    execute('container.list', {}, opts, function (msg, neuron) {
+        var ids = Array.isArray(msg.data.ids) ? msg.data.ids : [];
+        var infos = {};
+        async.each(ids, function (id, next) {
+            neuron.request(SERVICE, { event: 'container.query', data: { id: id } }, function (err, resp) {
+                infos[id] = err || resp.data;
+                next();
+            });
+        }, function () {
+            for (var id in infos) {
+                var info = infos[id];
+                if (info == null) {
+                    cli.log(cli.live(id) + ' ' + cli.lo('null'));
+                } else {
+                    cli.log(cli.live(id));
+                    if (info instanceof Error) {
+                        cli.log(cli.err('ERROR ' + info.message));
+                    } else {
+                        delete info.id;
+                        cli.logObject(info, {}, 1);
+                    }
+                }
+            }
+            process.exit(0);
+        });
+    });
 }
 
 function queryContainer(opts) {
@@ -48,15 +74,17 @@ function queryContainer(opts) {
 }
 
 function logState(msg) {
-    //code
+    cli.log(cli.verb('STATE') + ' ' + msg.data.id + ':' + ' ' + cli.lo(msg.data.lastState) + ' -> ' + cli.hi(msg.data.state));
 }
 
 function logStatus(msg) {
-    //code
+    cli.log(cli.verb('STATUS') + ' ' + msg.data.id);
+    cli.logObject(msg.data);
 }
 
 function logError(msg) {
-    //code
+    cli.log(cli.err('ERROR') + ' ' + msg.data.id)
+    cli.logObject(msg.data);
 }
 
 function monitorContainers(opts) {
