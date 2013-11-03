@@ -173,14 +173,30 @@ describe('Container', function () {
             assert.equal(collector.start, 1);
         });
 
-        it('invoke stop once', function () {
-            theContainer.stop().stop();
-            assert.equal(collector.stop, 1);
+        it('invoke stop once', function (done) {
+            theContainer.on('state', function (state) {
+                if (state == 'stopping') {
+                    theContainer.stop();
+                    process.nextTick(function () {
+                        Try.final(function () {
+                            assert.equal(collector.stop, 1);
+                        }, done);
+                    });
+                }
+            }).stop();
         });
 
-        it('invoke stop many times with force', function () {
-            theContainer.stop().stop({ force: true });
-            assert.equal(collector.stop, 2);
+        it('invoke stop many times with force', function (done) {
+            theContainer.on('state', function (state) {
+                if (state == 'stopping') {
+                    theContainer.stop({ force: true });
+                    process.nextTick(function () {
+                        Try.final(function () {
+                            assert.equal(collector.stop, 2);
+                        }, done);
+                    });
+                }
+            }).stop();
         });
     });
 
@@ -215,14 +231,30 @@ describe('Container', function () {
             assert.equal(collector.start, 1);
         });
 
-        it('invoke stop once', function () {
-            theContainer.stop().stop();
-            assert.equal(collector.stop, 1);
+        it('invoke stop once', function (done) {
+            theContainer.on('state', function (state) {
+                if (state == 'stopping') {
+                    theContainer.stop();
+                    process.nextTick(function () {
+                        Try.final(function () {
+                            assert.equal(collector.stop, 1);
+                        }, done);
+                    });
+                }
+            }).stop();
         });
 
-        it('invoke stop many times with force', function () {
-            theContainer.stop().stop({ force: true });
-            assert.equal(collector.stop, 2);
+        it('invoke stop many times with force', function (done) {
+            theContainer.on('state', function (state) {
+                if (state == 'stopping') {
+                    theContainer.stop({ force: true });
+                    process.nextTick(function () {
+                        Try.final(function () {
+                            assert.equal(collector.stop, 2);
+                        }, done);
+                    });
+                }
+            }).stop();
         });
     });
 

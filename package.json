@@ -8,6 +8,7 @@
         "url": "https://github.com/evo-cloud/ambience"
     },
     "scripts": {
+        "start": "node ambience",
         "test": "mocha --reporter spec test/*-test.js"
     },
     "main": "index.js",
