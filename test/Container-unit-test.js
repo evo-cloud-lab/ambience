@@ -1,298 +1,61 @@
 var assert = require('assert'),
+    Class  = require('js-class'),
     Try    = require('evo-elements').Try,
 
     Container = require('../lib/Container');
 
 describe('Container', function () {
-    var theContainer, collector;
+    var TestInterior = Class({
+        constructor: function (params) {
+            this._monitor = params.monitor;
+        },
 
-    function expectAction(action, expectation, containerFactory) {
-        it(expectation + ' ' + action, function () {
-            var container = containerFactory ? containerFactory() : theContainer;
-            if (expectation == 'reject') {
-                assert.throws(function () {
-                    container[action]();
-                }, /Invalid operation/i);
-            } else {
-                assert.doesNotThrow(function () {
-                    container[action]();
-                });
-            }
-        });
-    }
+        load: function () { this.state = 'stopped'; },
+        start: function () { this.state = 'running'; },
+        stop: function () { this.state = 'stopped'; },
+        unload: function () { this.state = 'offline'; },
 
-    function itAccept(action, containerFactory) {
-        expectAction(action, 'accept', containerFactory);
-    }
+        set state (s) {
+            process.nextTick(function () {
+                this._monitor('state', s);
+            }.bind(this));
+        }
+    });
 
-    function itReject(action, containerFactory) {
-        expectAction(action, 'reject', containerFactory);
-    }
-
-    function audit(action) {
-        collector[action] ++;
-    }
+    var container;
 
     beforeEach(function () {
-        collector = {
-            load: 0,
-            unload: 0,
-            start: 0,
-            stop: 0,
-            status: 0
-        };
-    });
-
-    describe('state: offline', function () {
-        beforeEach(function () {
-            theContainer = new Container(0, function () {
-                return Object.create({
-                    start: function () {},
-                    stop: function () {}
-                });
-            });
-            assert.equal(theContainer.state, 'offline');
-        });
-
-        itAccept('load');
-        itAccept('unload');
-        itReject('start');
-        itReject('stop');
-        itReject('status');
-    });
-
-    describe('state: loading', function () {
-        beforeEach(function (done) {
-            theContainer = new Container(0, function () {
-                return Object.create({
-                    load: function () {
-                        audit('load');
-                        Try.final(function () {
-                            assert.equal(theContainer.state, 'loading');
-                        }, done);
-                    },
-                    start: function () {},
-                    stop: function () {}
-                });
-            });
-            theContainer.load();
-        });
-
-        itAccept('load');
-        itAccept('unload');
-        itReject('start');
-        itReject('stop');
-        itReject('status');
-
-        it('invoke load once', function () {
-            theContainer.load().load();
-            assert.equal(collector.load, 1);
+        container = new Container(0, function (id, params) {
+            return new TestInterior(params);
         });
     });
 
-    describe('state: unloading', function () {
-        beforeEach(function (done) {
-            theContainer = new Container(0, function () {
-                return Object.create({
-                    unload: function () {
-                        audit('unload');
-                        Try.final(function () {
-                            assert.equal(theContainer.state, 'unloading');
-                        }, done);
-                    },
-                    start: function () {},
-                    stop: function () {}
-                });
-            });
-            theContainer.on('state', function (state) {
-                    state == 'stopped' && theContainer.unload();
-                })
-                .load();
-        });
-
-        itReject('load');
-        itAccept('unload');
-        itReject('start');
-        itReject('stop');
-        itReject('status');
-
-        it('invoke unload once', function () {
-            theContainer.unload().unload();
-            assert.equal(collector.unload, 1);
-        });
+    it('reaches the final state', function (done) {
+        assert.equal(container.state, 'offline');
+        var states = [];
+        container.on('state', function (state) {
+            states.push(state);
+            if (state == 'running') {
+                Try.final(function () {
+                    assert.deepEqual(states, ['loading', 'stopped', 'starting', 'running']);
+                }, done);
+            }
+        }).setState('running');
     });
 
-    describe('state: stopped', function () {
-        beforeEach(function (done) {
-            theContainer = new Container(0, function () {
-                return Object.create({
-                    start: function () {},
-                    stop: function () {}
-                });
-            });
-            theContainer.on('state', function (state) {
-                    state == 'stopped' && done();
-                })
-                .load();
-        });
-
-        itReject('load');
-        itAccept('unload');
-        itAccept('start');
-        itAccept('stop');
-        itAccept('status');
-    });
-
-    describe('state: starting', function () {
-        beforeEach(function (done) {
-            theContainer = new Container(0, function () {
-                return Object.create({
-                    start: function () {
-                        audit('start');
-                        Try.final(function () {
-                            assert.equal(theContainer.state, 'starting');
-                        }, done);
-                    },
-                    stop: function (opts) { audit('stop'); }
-                });
-            });
-            theContainer.on('state', function (state) {
-                    state == 'stopped' && theContainer.start();
-                })
-                .load();
-        });
-
-        itReject('load');
-        itReject('unload');
-        itAccept('start');
-        itAccept('stop');
-        itAccept('status');
-
-        it('invoke start once', function () {
-            theContainer.start().start();
-            assert.equal(collector.start, 1);
-        });
-
-        it('invoke stop once', function (done) {
-            theContainer.on('state', function (state) {
-                if (state == 'stopping') {
-                    theContainer.stop();
-                    process.nextTick(function () {
-                        Try.final(function () {
-                            assert.equal(collector.stop, 1);
-                        }, done);
-                    });
-                }
-            }).stop();
-        });
-
-        it('invoke stop many times with force', function (done) {
-            theContainer.on('state', function (state) {
-                if (state == 'stopping') {
-                    theContainer.stop({ force: true });
-                    process.nextTick(function () {
-                        Try.final(function () {
-                            assert.equal(collector.stop, 2);
-                        }, done);
-                    });
-                }
-            }).stop();
-        });
-    });
-
-    describe('state: running', function () {
-        beforeEach(function (done) {
-            theContainer = new Container(0, function (id, params) {
-                return Object.create({
-                    start: function (opts) {
-                        audit('start');
-                        Try.final(function () {
-                            assert.equal(theContainer.state, 'starting');
-                        }, done);
-                        params.monitor('state', 'running');
-                    },
-                    stop: function (opts) { audit('stop'); params.monitor('state', 'running'); }
-                });
-            });
-            theContainer.on('state', function (state) {
-                    state == 'stopped' && theContainer.start();
-                })
-                .load();
-        });
-
-        itReject('load');
-        itReject('unload');
-        itAccept('start');
-        itAccept('stop');
-        itAccept('status');
-
-        it('invoke start once', function () {
-            theContainer.start().start();
-            assert.equal(collector.start, 1);
-        });
-
-        it('invoke stop once', function (done) {
-            theContainer.on('state', function (state) {
-                if (state == 'stopping') {
-                    theContainer.stop();
-                    process.nextTick(function () {
-                        Try.final(function () {
-                            assert.equal(collector.stop, 1);
-                        }, done);
-                    });
-                }
-            }).stop();
-        });
-
-        it('invoke stop many times with force', function (done) {
-            theContainer.on('state', function (state) {
-                if (state == 'stopping') {
-                    theContainer.stop({ force: true });
-                    process.nextTick(function () {
-                        Try.final(function () {
-                            assert.equal(collector.stop, 2);
-                        }, done);
-                    });
-                }
-            }).stop();
-        });
-    });
-
-    describe('state: stopping', function () {
-        beforeEach(function (done) {
-            theContainer = new Container(0, function (id, params) {
-                return Object.create({
-                    start: function (opts) { audit('start'); params.monitor('state', 'running'); },
-                    stop: function () {
-                        audit('stop');
-                        Try.final(function () {
-                            assert.equal(theContainer.state, 'stopping');
-                        }, done);
-                    }
-                });
-            });
-            theContainer.on('state', function (state) {
-                    switch (state) {
-                        case 'stopped':
-                            theContainer.start();
-                            break;
-                        case 'running':
-                            theContainer.stop();
-                            break;
-                    }
-                })
-                .load();
-        });
-
-        itReject('load');
-        itReject('unload');
-        itReject('start');
-        itAccept('stop');
-        itAccept('status');
-
-        it('invoke stop once', function () {
-            theContainer.stop().stop();
-            assert.equal(collector.stop, 1);
-        });
+    it('reports error if transition fails', function (done) {
+        assert.equal(container.state, 'offline');
+        container.interior.start = function () { this.state = 'stopped'; };
+        var states = [];
+        container.on('state', function (state) {
+            states.push(state);
+        }).on('error', function (err) {
+            Try.final(function () {
+                assert.equal(err.expectation, 'running');
+                assert.equal(err.actual, 'stopped');
+                assert.equal(container.state, 'stopped');
+                assert.deepEqual(states, ['loading', 'stopped', 'starting', 'stopped']);
+            }, done);
+        }).setState('running');
     });
 });
