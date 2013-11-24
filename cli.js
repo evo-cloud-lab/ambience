@@ -6,11 +6,11 @@ var SERVICE = 'ambience';
 var cli;
 
 function request(neuron, msg, next) {
-    cli.log(cli.verb('Request'));
+    cli.logAction('Request');
     cli.logObject(msg);
     neuron.request(SERVICE, msg, function (err, resp) {
         err && cli.fatal(err);
-        cli.log(cli.verb('Response'));
+        cli.logAction('Response');
         cli.logObject(resp);
         next ? next(resp, neuron) : process.exit(0);
     });
@@ -40,6 +40,11 @@ function stopContainer(opts) {
     execute('container.stop', { id: opts.ID, force: opts.force }, opts);
 }
 
+var INFO_STYLUS = {
+    subject: function (subject) { return cli.live(subject); },
+    state: function (state) { return state == 'null' ? cli.lo('null') : state; }
+};
+
 function listContainers(opts) {
     execute('container.list', {}, opts, function (msg, neuron) {
         var ids = Array.isArray(msg.data.ids) ? msg.data.ids : [];
@@ -53,11 +58,11 @@ function listContainers(opts) {
             for (var id in infos) {
                 var info = infos[id];
                 if (info == null) {
-                    cli.log(cli.live(id) + ' ' + cli.lo('null'));
+                    cli.logAction(null, id, 'null', INFO_STYLUS);
                 } else {
-                    cli.log(cli.live(id));
+                    cli.logAction(null, id, null, INFO_STYLUS);
                     if (info instanceof Error) {
-                        cli.log(cli.err('ERROR ' + info.message));
+                        cli.logErr(cli.err('ERROR ' + info.message));
                     } else {
                         delete info.id;
                         cli.logObject(info, {}, 1);
@@ -69,21 +74,32 @@ function listContainers(opts) {
     });
 }
 
+var STATES_STYLUS = {
+    subject: function (subject) { return subject; },
+    state: function (state) {
+        if (state.curr) {
+            return cli.lo(state.last) + ' -> ' + cli.hi(state.curr);
+        } else {
+            return state;
+        }
+    }
+}
+
 function queryContainer(opts) {
     execute('container.query', { id: opts.ID }, opts);
 }
 
 function logState(msg) {
-    cli.log(cli.verb('STATE') + ' ' + msg.data.id + ':' + ' ' + cli.lo(msg.data.lastState) + ' -> ' + cli.hi(msg.data.state));
+    cli.logAction('STATE', msg.data.id, { last: msg.data.lastState, curr: msg.data.state }, STATES_STYLUS);
 }
 
 function logStatus(msg) {
-    cli.log(cli.verb('STATUS') + ' ' + msg.data.id);
+    cli.logAction('STATUS', msg.data.id, null, STATES_STYLUS);
     cli.logObject(msg.data);
 }
 
 function logError(msg) {
-    cli.log(cli.err('ERROR') + ' ' + msg.data.id)
+    cli.logErr(cli.err('ERROR') + ' ' + msg.data.id)
     cli.logObject(msg.data);
 }
 
